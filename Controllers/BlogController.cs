@@ -19,14 +19,13 @@ namespace JobPortal.Controllers
 
         // POST /api/companies/{companyId}/blogs
         [HttpPost("companies/{companyId}/blogs")]
-        public async Task<IActionResult> CreateCompanyBlog(Guid companyId, [FromBody] Blog blog)
+        public async Task<IActionResult> CreateCompanyBlog(Guid companyId, [FromBody] CreateBlog blog)
         {
             if (!_context.Companies.Any(c => c.CompanyId == companyId))
                 return NotFound("Company not found.");
 
-            blog.CompanyId = companyId;
 
-            _context.Blogs.Add(blog);
+            _context.Blogs.Add(new Blog { CompanyId=companyId, Title = blog.title, Content = blog.content, PostedDate = DateTime.UtcNow });
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetCompanyBlogs), new { companyId }, blog);
@@ -45,14 +44,12 @@ namespace JobPortal.Controllers
 
         // POST /api/employees/{employeeId}/blogs
         [HttpPost("employees/{employeeId}/blogs")]
-        public async Task<IActionResult> CreateEmployeeBlog(Guid employeeId, [FromBody] Blog blog)
+        public async Task<IActionResult> CreateEmployeeBlog(Guid employeeId, [FromBody] CreateBlog blog)
         {
             if (!_context.Employees.Any(e => e.EmployeeId == employeeId))
                 return NotFound("Employee not found.");
 
-            blog.EmployeeId = employeeId;
-
-            _context.Blogs.Add(blog);
+            _context.Blogs.Add(new Blog {EmployeeId = employeeId,Title = blog.title,Content = blog.content,PostedDate = DateTime.UtcNow });
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetEmployeeBlogs), new { employeeId }, blog);
@@ -69,4 +66,6 @@ namespace JobPortal.Controllers
             return Ok(blogs);
         }
     }
+
+    public record CreateBlog(string title,string content);
 }

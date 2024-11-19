@@ -19,19 +19,19 @@ namespace JobPortal.Controllers
 
         // POST /api/reviews
         [HttpPost("reviews")]
-        public async Task<IActionResult> CreateReview([FromBody] Review review)
+        public async Task<IActionResult> CreateReview([FromBody] CreateReview review)
         {
-            if (!_context.Companies.Any(c => c.CompanyId == review.CompanyId))
+            if (!_context.Companies.Any(c => c.CompanyId == review.companyId))
                 return NotFound("Company not found.");
 
-            if (!_context.Employees.Any(e => e.EmployeeId == review.EmployeeId))
+            if (!_context.Employees.Any(e => e.EmployeeId == review.employeId))
                 return NotFound("Employee not found.");
 
 
-            _context.Reviews.Add(review);
+            _context.Reviews.Add(new Review {Content=review.content,Rating=review.rating,PostedDate=DateTime.UtcNow,CompanyId=review.companyId,EmployeeId=review.employeId });
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetCompanyReviews), new { companyId = review.CompanyId }, review);
+            return CreatedAtAction(nameof(GetCompanyReviews), new { companyId = review.companyId }, review);
         }
 
         // GET /api/companies/{companyId}/reviews
@@ -56,4 +56,6 @@ namespace JobPortal.Controllers
             return Ok(reviews);
         }
     }
+
+    public record CreateReview(string content,int rating,Guid companyId,Guid employeId);
 }

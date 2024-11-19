@@ -1,4 +1,5 @@
 ﻿using JobPortal.Data;
+using JobPortal.Model;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,6 +23,8 @@ namespace JobPortal.Controllers
             var jobs = _context.Jobs.ToList();
             return Ok(jobs);
         }
+
+        
 
         // GET: /api/jobs/{jobId}
         [HttpGet("GetJob/{jobId}")]
@@ -59,4 +62,6 @@ namespace JobPortal.Controllers
             return Ok(jobs.ToList());
         }
     }
+
+    
 }

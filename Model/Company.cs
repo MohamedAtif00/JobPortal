@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.ViewEngines;
-
-namespace JobPortal.Model
+﻿namespace JobPortal.Model
 {
     public class Company
     {

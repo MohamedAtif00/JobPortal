@@ -18,7 +18,7 @@ namespace JobPortal
             builder.Services.AddSwaggerGen();
 
             builder.Services.AddDbContext<JobPortalContext>(options =>
-                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")),ServiceLifetime.Transient);
 
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
                 .AddEntityFrameworkStores<JobPortalContext>()

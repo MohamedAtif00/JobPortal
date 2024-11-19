@@ -1,8 +1,12 @@
-﻿using JobPortal.DTO;
+﻿using JobPortal.Data;
+using JobPortal.DTO;
+using JobPortal.Helper;
 using JobPortal.Model;
 using JobPortal.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 namespace JobPortal.Controllers
 {
@@ -11,10 +15,12 @@ namespace JobPortal.Controllers
     public class CompaniesController : ControllerBase
     {
         private readonly CompanyService _companyService;
+        private readonly JobPortalContext _context;
 
-        public CompaniesController(CompanyService companyService)
+        public CompaniesController(CompanyService companyService, JobPortalContext context)
         {
             _companyService = companyService;
+            _context = context;
         }
 
         [HttpPost("Register")]
@@ -43,7 +49,24 @@ namespace JobPortal.Controllers
         public async Task<IActionResult> Login([FromBody] LoginDto login)
         {
             var company = await _companyService.AuthenticateCompanyAsync(login.Email, login.Password);
-            return company != null ? Ok(company) : Unauthorized();
+            var existCompan = await _context.Companies.Where(x => x.Email == company.Email).SingleOrDefaultAsync();
+
+            if (existCompan == null)
+                return Unauthorized("Invalid email or password.");
+
+            // Generate JWT Token
+            var token = TokenHelper.GenerateJwtToken(existCompan.CompanyId.ToString(), existCompan.Email,"company", existCompan.Name);
+
+            return Ok(new
+            {
+                Token = token,
+                Company = new
+                {
+                    existCompan.CompanyId,
+                    company.CompanyName,
+                    company.Email
+                }
+            });
         }
 
         [HttpGet]
@@ -72,9 +95,11 @@ namespace JobPortal.Controllers
         }
 
         [HttpPost("{companyId}/jobs")]
-        public async Task<IActionResult> PostJob(Guid companyId, [FromBody] Job job)
+        public async Task<IActionResult> PostJob(Guid companyId, [FromBody] CreateJob job)
         {
-            return Ok(await _companyService.PostJob(companyId, job));
+            return Ok(await _companyService.PostJob(companyId, new Job {Title=job.title,Description=job.description,Location=job.location,SalaryRange=job.salaryRange,CompanyId=companyId }));
         }
     }
+
+    public record CreateJob(string title, string description, string location, string salaryRange);
 }

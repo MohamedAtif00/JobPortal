@@ -1,9 +1,13 @@
-﻿using JobPortal.DTO;
+﻿using JobPortal.Data;
+using JobPortal.DTO;
+using JobPortal.Helper;
 using JobPortal.Model;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace JobPortal.Controllers
 {
@@ -13,11 +17,12 @@ namespace JobPortal.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
-
-        public EmployeeController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+        private readonly JobPortalContext _context;
+        public EmployeeController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, JobPortalContext context)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _context = context;
         }
 
         // POST: /api/employees/register
@@ -34,6 +39,8 @@ namespace JobPortal.Controllers
             };
 
             var result = await _userManager.CreateAsync(user, model.Password);
+            _context.Employees.Add(new Employee { FirstName = model.FullName, Email = model.Email, CreatedDate = DateTime.UtcNow });
+            _context.SaveChanges();
             if (result.Succeeded)
             {
                 await _userManager.AddToRoleAsync(user, "Employee");
@@ -47,27 +54,84 @@ namespace JobPortal.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto model)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, false, false);
-            if (result.Succeeded)
+            // Authenticate user
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null)
+                return Unauthorized("Invalid email or password.");
+
+            var result = await _signInManager.PasswordSignInAsync(user, model.Password, false, false);
+
+            var employee = _context.Employees.Where(x => x.Email == user.Email).SingleOrDefaultAsync();
+            if (!result.Succeeded)
+                return Unauthorized("Invalid login attempt.");
+
+            // Generate JWT token
+            var roles = await _userManager.GetRolesAsync(user);
+            var token = TokenHelper.GenerateJwtToken(user.Id, user.Email, roles.FirstOrDefault());
+
+            return Ok(new
             {
-                return Ok("Employee logged in successfully.");
-            }
-
-            return Unauthorized("Invalid login attempt.");
+                Token = token,
+                User = new
+                {
+                    employee.Id,
+                    user.Email,
+                    Roles = roles
+                }
+            });
         }
+
 
         // POST: /api/employees/{employeeId}/apply/{jobId}
         [Authorize(Roles = "Employee")]
         [HttpPost("{employeeId}/apply/{jobId}")]
-        public IActionResult ApplyForJob(string employeeId, string jobId, [FromForm] ApplyJobDto model)
+        public async Task<IActionResult> ApplyForJob(Guid employeeId, Guid jobId, [FromForm] ApplyJobDto model)
         {
-            // Simulate job application storage (replace with your implementation)
-            // Store the CV file and associate with the employee and job
-            // You can save it to a database or file storage system
+            // Validate employee existence
+            var employee = await _context.Employees.FindAsync(employeeId);
+            if (employee == null)
+            {
+                return NotFound($"Employee with ID {employeeId} not found.");
+            }
 
-            return Ok($"Application submitted by employee {employeeId} for job {jobId}.");
+            // Validate job existence
+            var job = await _context.Jobs.FindAsync(jobId);
+            if (job == null)
+            {
+                return NotFound($"Job with ID {jobId} not found.");
+            }
+
+            // Validate CV file
+            if (model.Cv == null || model.Cv.Length == 0)
+            {
+                return BadRequest("A CV file is required.");
+            }
+
+            // Save the CV file (example: to a local folder)
+            var cvFilePath = Path.Combine("UploadedCVs", $"{Guid.NewGuid()}_{model.Cv.FileName}");
+            using (var stream = new FileStream(cvFilePath, FileMode.Create))
+            {
+                await model.Cv.CopyToAsync(stream);
+            }
+
+            // Create the job application
+            var application = new Application
+            {
+                ApplicationId = Guid.NewGuid(),
+                EmployeeId = employeeId,
+                JobId = jobId,
+                CvFilePath = cvFilePath,
+                AppliedDate = DateTime.UtcNow
+            };
+
+            // Save to database
+            _context.Applications.Add(application);
+            await _context.SaveChangesAsync();
+
+            return Ok($"Application submitted successfully by employee {employeeId} for job {jobId}.");
         }
 
         // GET: /api/employees/{employeeId}/applications
