@@ -14,6 +14,8 @@ namespace JobPortal.DTO
         [Required]
         [MinLength(6)]
         public string Password { get; set; }
+
+        public IFormFile image { get; set; }
     }
 
 

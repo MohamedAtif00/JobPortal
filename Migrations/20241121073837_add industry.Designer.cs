@@ -4,6 +4,7 @@ using JobPortal.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JobPortal.Migrations
 {
     [DbContext(typeof(JobPortalContext))]
-    partial class JobPortalContextModelSnapshot : ModelSnapshot
+    [Migration("20241121073837_add industry")]
+    partial class addindustry
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -212,6 +215,8 @@ namespace JobPortal.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("CompanyId");
+
+                    b.HasIndex("IndustryId");
 
                     b.ToTable("Companies");
                 });
@@ -497,6 +502,17 @@ namespace JobPortal.Migrations
                     b.Navigation("Company");
 
                     b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("JobPortal.Model.Company", b =>
+                {
+                    b.HasOne("JobPortal.Model.Industry", "Industry")
+                        .WithMany()
+                        .HasForeignKey("IndustryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Industry");
                 });
 
             modelBuilder.Entity("JobPortal.Model.Job", b =>

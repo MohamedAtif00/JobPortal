@@ -13,6 +13,7 @@ namespace JobPortal.Data
         public DbSet<Company> Companies { get; set; }
         public DbSet<Employee> Employees { get; set; }
         public DbSet<Job> Jobs { get; set; }
+        public DbSet<Industry> industries { get; set; }
         public DbSet<Application> Applications { get; set; }
         public DbSet<Blog> Blogs { get; set; }
         public DbSet<Review> Reviews { get; set; }
@@ -24,6 +25,9 @@ namespace JobPortal.Data
             modelBuilder.Entity<Category>()
                 .HasIndex(c => c.Name)
                 .IsUnique();
+
+            
+
 
             base.OnModelCreating(modelBuilder);
         }

@@ -4,10 +4,13 @@ using JobPortal.Helper;
 using JobPortal.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.Design;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace JobPortal.Controllers
 {
@@ -18,37 +21,62 @@ namespace JobPortal.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly JobPortalContext _context;
-        public EmployeeController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, JobPortalContext context)
+        private readonly IWebHostEnvironment _webHostEnvironment;
+        public EmployeeController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, JobPortalContext context, IWebHostEnvironment webHostEnvironment)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _context = context;
+            _webHostEnvironment = webHostEnvironment;
         }
 
         // POST: /api/employees/register
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterEmployeeDto model)
+        public async Task<IActionResult> Register([FromForm] RegisterEmployeeDto model)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            // Generate a GUID for both user.Id and employee.EmployeeId
+            var id = Guid.NewGuid();
 
             var user = new ApplicationUser
             {
+                Id = id.ToString(), // Assign generated ID
                 UserName = model.Email,
                 Email = model.Email,
                 FullName = model.FullName,
             };
 
+            // Save the profile image using the generated ID
+            string path = await ImageHelper.SaveImageAsync(model.image, _webHostEnvironment.WebRootPath, "Upload/EmployeeImage", user.Id);
+
+            user.ProfileImageUrl = path;
+
+            // Create the Employee with the same ID
+            var employee = new Employee
+            {
+                EmployeeId = id, // Assign the same ID
+                FirstName = model.FullName,
+                Email = model.Email,
+                CreatedDate = DateTime.UtcNow
+            };
+
+            // Add the employee to the context
+            _context.Employees.Add(employee);
+
+            // Save user to identity
             var result = await _userManager.CreateAsync(user, model.Password);
-            _context.Employees.Add(new Employee { FirstName = model.FullName, Email = model.Email, CreatedDate = DateTime.UtcNow });
-            _context.SaveChanges();
             if (result.Succeeded)
             {
+                await _context.SaveChangesAsync(); // Save the employee entity to the database
                 await _userManager.AddToRoleAsync(user, "Employee");
                 return Ok("Employee registered successfully.");
             }
 
             return BadRequest(result.Errors);
         }
+
 
         // POST: /api/employees/login
         [HttpPost("login")]
@@ -64,7 +92,7 @@ namespace JobPortal.Controllers
 
             var result = await _signInManager.PasswordSignInAsync(user, model.Password, false, false);
 
-            var employee = _context.Employees.Where(x => x.Email == user.Email).SingleOrDefaultAsync();
+            var employee = await _context.Employees.Where(x => x.Email == user.Email).FirstOrDefaultAsync();
             if (!result.Succeeded)
                 return Unauthorized("Invalid login attempt.");
 
@@ -77,16 +105,35 @@ namespace JobPortal.Controllers
                 Token = token,
                 User = new
                 {
-                    employee.Id,
+                    employee.EmployeeId,
                     user.Email,
                     Roles = roles
                 }
             });
         }
+        [HttpGet("{employeeId}/GetEmployeeImage")]
+        public async Task<IActionResult> GetEmployeeImage(Guid employeeId)
+        {
+            var file = ImageHelper.GetImageFilePath($"Upload/EmployeeImage/{employeeId.ToString()}", _webHostEnvironment.WebRootPath);
+
+            if (System.IO.File.Exists(file))
+            {
+
+
+                // Read the file into a byte array
+                byte[] imageData = System.IO.File.ReadAllBytes(file);
+
+
+                // Return the image data along with appropriate content type
+                return File(imageData, "image/jpeg");
+            }
+
+            return NotFound("this master image is not exist");
+        }
 
 
         // POST: /api/employees/{employeeId}/apply/{jobId}
-        [Authorize(Roles = "Employee")]
+
         [HttpPost("{employeeId}/apply/{jobId}")]
         public async Task<IActionResult> ApplyForJob(Guid employeeId, Guid jobId, [FromForm] ApplyJobDto model)
         {
@@ -111,22 +158,24 @@ namespace JobPortal.Controllers
             }
 
             // Save the CV file (example: to a local folder)
-            var cvFilePath = Path.Combine("UploadedCVs", $"{Guid.NewGuid()}_{model.Cv.FileName}");
-            using (var stream = new FileStream(cvFilePath, FileMode.Create))
-            {
-                await model.Cv.CopyToAsync(stream);
-            }
+            //var cvFilePath = Path.Combine("UploadedCVs", $"{Guid.NewGuid()}_{model.Cv.FileName}");
+            //using (var stream = new FileStream(cvFilePath, FileMode.Create))
+            //{
+            //    await model.Cv.CopyToAsync(stream);
+            //}
 
             // Create the job application
-            var application = new Application
+            var application = new JobPortal.Model.Application
             {
                 ApplicationId = Guid.NewGuid(),
                 EmployeeId = employeeId,
                 JobId = jobId,
-                CvFilePath = cvFilePath,
                 AppliedDate = DateTime.UtcNow
             };
 
+            string cvpath = await ImageHelper.SaveImageAsync(model.Cv,  _webHostEnvironment.WebRootPath, $"Upload/CV/{application.ApplicationId}", model.Cv.FileName);
+
+            application.CvFilePath = cvpath;
             // Save to database
             _context.Applications.Add(application);
             await _context.SaveChangesAsync();
@@ -164,5 +213,38 @@ namespace JobPortal.Controllers
 
             return Ok(results);
         }
+
+        [HttpGet("GetCv")]
+        public async Task<IActionResult> GetCv(Guid applicationId)
+        {
+            var file = ImageHelper.GetImageFilePath($"Upload/CompanyImage/{applicationId.ToString()}", _webHostEnvironment.WebRootPath);
+
+            if (System.IO.File.Exists(file))
+            {
+
+
+                // Read the file into a byte array
+                byte[] imageData = System.IO.File.ReadAllBytes(file);
+
+
+                // Return the image data along with appropriate content type
+                return File(imageData, "image/jpeg");
+            }
+
+            return NotFound("this master image is not exist");
+        }
+
+
+
+
+        [HttpGet("{jobId}/GetAllApplication")]
+        public async Task<IActionResult> GetAllApplication(Guid jobId)
+        {
+            var comps = await _context.Applications.Where(x => x.JobId == jobId).ToListAsync();
+
+            return Ok(comps);
+        }
+
     }
+
 }

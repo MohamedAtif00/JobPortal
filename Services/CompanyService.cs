@@ -1,4 +1,5 @@
 ﻿using JobPortal.Data;
+using JobPortal.Helper;
 using JobPortal.Model;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -10,24 +11,31 @@ namespace JobPortal.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly JobPortalContext _context;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public CompanyService(JobPortalContext context, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+        public CompanyService(JobPortalContext context, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IWebHostEnvironment webHostEnvironment)
         {
             _context = context;
             _userManager = userManager;
             _signInManager = signInManager;
+            _webHostEnvironment = webHostEnvironment;
         }
 
         // Register a company
-        public async Task<Company> RegisterCompanyAsync(Company company, string password)
+        public async Task<Company> RegisterCompanyAsync(Company company,IFormFile image, string password)
         {
             // Create ApplicationUser and set properties
             var user = new ApplicationUser
             {
+                Id = company.CompanyId.ToString(),
                 UserName = company.Email,
                 Email = company.Email,
                 // Additional properties if required
             };
+
+            string path = await ImageHelper.SaveImageAsync(image, _webHostEnvironment.WebRootPath, "Upload/CompanyImage", user.Id);
+
+            user.ProfileImageUrl = path;
 
             // Create the user in the identity system
             var result = await _userManager.CreateAsync(user, password);
@@ -72,9 +80,9 @@ namespace JobPortal.Services
             return await _context.Companies.Include(c => c.Jobs).FirstOrDefaultAsync(c => c.CompanyId == companyId);
         }
 
-        public async Task<List<Company>> GetCompaniesByIndustry(string industry)
+        public async Task<List<Company>> GetCompaniesByIndustry(Guid industryId)
         {
-            return await _context.Companies.Where(c => c.Industry == industry).ToListAsync();
+            return await _context.Companies.Where(c => c.IndustryId == industryId).ToListAsync();
         }
 
         public async Task<List<Job>> GetJobsByCompany(Guid companyId)
