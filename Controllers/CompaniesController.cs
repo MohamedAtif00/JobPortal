@@ -37,6 +37,7 @@ namespace JobPortal.Controllers
             {
                 Name = model.Name,
                 Email = model.Email,
+                IndustryId = model.IndustryId
                 // Map other properties as needed
             };
 
